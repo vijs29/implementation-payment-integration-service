@@ -174,3 +174,19 @@ The platform architecture now represents a realistic payment processing system w
 - AI-assisted operational tooling
 - guardrail-based automation safety
 - production-grade system architecture
+
+## Multi-Channel Payment Handling
+
+---
+
+## Domain Model Expansion
+
+The transaction domain model was expanded to include a **rental_manager_id** field.
+
+This reflects real-world property payment ecosystems where property managers operate on behalf of property owners.
+
+Including this field enables:
+
+- manager-level payment reporting
+- operational monitoring by management portfolio
+- AI-driven operational insights across managed properties

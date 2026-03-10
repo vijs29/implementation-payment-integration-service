@@ -708,12 +708,16 @@ The core domain object of the system is the **Payment Transaction**.
 
 The transaction model records:
 
+The transaction model records:
+
 - tenant making the payment
 - property receiving the payment
 - property owner receiving settlement
+- rental manager responsible for managing the property
 - payment channel used
 - transaction amount
+- transaction currency
 - transaction status
-- creation timestamp
+- transaction creation timestamp
 
 Using a transaction model allows the platform to support distributed processing, retries, and settlement tracking.
