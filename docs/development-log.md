@@ -190,3 +190,22 @@ Including this field enables:
 - manager-level payment reporting
 - operational monitoring by management portfolio
 - AI-driven operational insights across managed properties
+
+---
+
+# Day 4 — Rent Billing Period Integration
+
+The transaction domain model was expanded to include billing period fields:
+
+rent_year  
+rent_month
+
+These fields represent the specific billing period for which rent is being paid.
+
+This allows the platform to enforce the rule that only one rent payment can exist for a tenant, property, and billing period combination.
+
+Example uniqueness rule:
+
+tenant_id + property_id + rent_year + rent_month
+
+This design supports reconciliation, reporting, and future AI-driven operational analysis of rent payment behavior.

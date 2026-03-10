@@ -706,18 +706,59 @@ Each channel is handled by a **channel-specific processor** within the payment p
 
 The core domain object of the system is the **Payment Transaction**.
 
-The transaction model records:
-
-The transaction model records:
+TThe transaction model records:
 
 - tenant making the payment
 - property receiving the payment
 - property owner receiving settlement
 - rental manager responsible for managing the property
+- rent year representing the billing year for which rent is being paid
+- rent month representing the billing month for which rent is being paid
 - payment channel used
 - transaction amount
-- transaction currency
+- platform processing fee
+- net settlement amount transferred to the property owner
 - transaction status
 - transaction creation timestamp
+
+---
+
+## Rent Billing Period
+
+Each payment transaction represents rent paid for a specific billing period.
+
+The platform records the following fields:
+
+rent_year  
+The calendar year for which the rent payment applies.
+
+rent_month  
+The calendar month (1–12) for which the rent payment applies.
+
+This design allows the system to enforce the rule that a tenant may submit **only one payment per property per billing period**.
+
+Example uniqueness rule:
+
+tenant_id + property_id + rent_year + rent_month
+
+This structure also enables accurate reporting, reconciliation, and AI-driven analysis of payment patterns.
+
+## Domain Context
+
+The platform models a typical rental property payment ecosystem.
+
+Tenant  
+Individual responsible for paying rent.
+
+Property  
+Rental unit associated with the payment.
+
+Property Owner  
+Owner who ultimately receives settlement of rent payments.
+
+Rental Manager  
+Property management entity responsible for overseeing property operations and payment management.
+
+The Payment Transaction connects these entities and serves as the central record used for processing, settlement, reporting, and operational analysis.
 
 Using a transaction model allows the platform to support distributed processing, retries, and settlement tracking.
