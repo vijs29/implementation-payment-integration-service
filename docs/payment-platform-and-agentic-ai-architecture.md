@@ -626,3 +626,94 @@ disaster recovery engineering
 human-in-the-loop automation
 
 Together, these components illustrate modern platform engineering practices for cloud-native systems.
+
+---
+
+# Asynchronous Transaction Processing Architecture
+
+Modern payment platforms rarely process transactions synchronously during API calls.  
+Instead, payment systems typically record a transaction request and process the payment through background workers.
+
+This platform follows an **asynchronous transaction processing model**.
+
+High-level flow:
+
+Client Application
+        │
+        ▼
+Payment API
+        │
+        ▼
+Transaction Record Created
+(status = CREATED)
+        │
+        ▼
+Transaction Processing Queue
+        │
+        ▼
+Background Payment Processor
+        │
+        ▼
+Payment Channel Handler
+(ACH / Card / Cash Agent)
+        │
+        ▼
+Transaction Status Updated
+
+---
+
+## Transaction Lifecycle
+
+Each payment moves through a defined lifecycle.
+
+CREATED  
+Payment request accepted by the platform.
+
+PROCESSING  
+Background worker is attempting to complete the payment.
+
+SUCCEEDED  
+Payment was successfully processed.
+
+FAILED  
+Payment processing failed.
+
+SETTLED  
+Funds have been transferred to the property owner account.
+
+Tracking this lifecycle allows the platform to support retries, reconciliation, settlement, and reporting.
+
+---
+
+## Multi-Channel Payment Processing
+
+The platform supports multiple payment channels. Each channel may have different processing behavior.
+
+ACH  
+Bank transfer payments that may involve settlement delays.
+
+CARD  
+Credit or debit card payments that usually return authorization results immediately.
+
+CASH_AGENT  
+Cash payments collected by authorized retail agents.
+
+Each channel is handled by a **channel-specific processor** within the payment processing engine.
+
+---
+
+## Transaction-Driven Platform Design
+
+The core domain object of the system is the **Payment Transaction**.
+
+The transaction model records:
+
+- tenant making the payment
+- property receiving the payment
+- property owner receiving settlement
+- payment channel used
+- transaction amount
+- transaction status
+- creation timestamp
+
+Using a transaction model allows the platform to support distributed processing, retries, and settlement tracking.

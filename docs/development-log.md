@@ -117,3 +117,60 @@ The project now illustrates modern platform engineering principles:
 - disaster recovery design
 - operational safety controls
 - human-in-the-loop automation
+
+---
+
+# Day 3 — Payment Platform Architecture Expansion
+
+## Platform Scope Clarification
+
+The system architecture was refined to reflect a production-grade **AI-Driven Payment Processing Platform** rather than a simple payment API demonstration.
+
+The platform now models real payment processing scenarios including:
+
+- tenant rent payments
+- settlement to property owners
+- receipt generation and reporting services
+
+---
+
+## Asynchronous Transaction Processing
+
+The architecture was updated to implement an **asynchronous transaction processing model**.
+
+Payment requests are accepted by the API and recorded as transactions.  
+Background workers then process these transactions through the payment lifecycle.
+
+Transaction lifecycle states introduced:
+
+CREATED  
+PROCESSING  
+SUCCEEDED  
+FAILED  
+SETTLED
+
+This approach allows the platform to scale and handle payment operations that may involve external systems or settlement delays.
+
+---
+
+## Multi-Channel Payment Handling
+
+The payment platform now models multiple payment channels:
+
+ACH  
+CARD  
+CASH_AGENT
+
+Each payment channel may involve different processing logic and settlement behavior.
+
+---
+
+## Architectural Outcome
+
+The platform architecture now represents a realistic payment processing system with the following characteristics:
+
+- asynchronous transaction processing
+- multi-channel payment support
+- AI-assisted operational tooling
+- guardrail-based automation safety
+- production-grade system architecture
