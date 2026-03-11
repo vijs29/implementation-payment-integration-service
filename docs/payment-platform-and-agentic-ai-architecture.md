@@ -817,3 +817,96 @@ CASH_AGENT payments → $5 flat fee
 The settlement amount transferred to the property owner is calculated as:
 
 settlement_amount = payment_amount − platform_fee
+
+Persistent Storage Layer
+
+The payment platform now incorporates a relational persistence layer using PostgreSQL.
+
+SQLAlchemy is used as the Object Relational Mapping (ORM) framework to translate domain objects into relational database tables.
+
+Database Architecture
+FastAPI
+   │
+   ▼
+Service Layer
+   │
+   ▼
+SQLAlchemy ORM
+   │
+   ▼
+PostgreSQL
+
+The ORM layer provides:
+
+database connection management
+
+object-to-table mapping
+
+transaction management
+
+schema generation
+
+Transaction Table
+
+The platform defines the following table:
+
+payment_transactions
+
+Each record represents a rent payment transaction submitted by a tenant.
+
+Key fields include:
+
+tenant identifier
+
+property identifier
+
+billing period (year and month)
+
+payment amount
+
+platform processing fee
+
+settlement amount
+
+payment channel
+
+transaction lifecycle status
+
+transaction creation timestamp
+
+Automatic Schema Management
+
+The application initializes database tables during startup using SQLAlchemy metadata:
+
+Base.metadata.create_all(bind=engine)
+
+This mechanism allows the platform to automatically create required tables in development environments without manual SQL scripts.
+
+Future Enhancements
+
+Upcoming phases will extend the database layer to support:
+
+transaction persistence through SQLAlchemy sessions
+
+settlement tracking
+
+reporting queries
+
+payment reconciliation workflows
+
+AI-driven transaction analysis
+
+What Your GitHub Project Now Demonstrates
+
+Your project now includes:
+
+✔ API design
+✔ request validation
+✔ business logic layer
+✔ duplicate payment protection
+✔ platform fee revenue model
+✔ transaction retrieval API
+✔ ORM database layer
+✔ PostgreSQL environment via Docker
+
+This is already very close to a real fintech backend architecture.

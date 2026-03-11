@@ -10,6 +10,18 @@ from app.services.payment_service import PaymentService
 
 from app.models.payment_transaction import PaymentTransactionCreate
 
+# Import database engine and Base metadata
+
+from app.database.database import engine, Base
+
+# Import ORm table models so SQLAlchemy knows what tables exist
+
+from app.database import models
+
+# Create database tables automatically if they do not exist
+
+Base.metadata.create_all(bind=engine)
+
 # Create an instance of the FastAPI application.
 # This object represents our API server.
 # All API routes (endpoints) will be attached to this object.

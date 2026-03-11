@@ -20,7 +20,7 @@ from enum import Enum
 # Using Enum ensures that only valid status values can exist.
 # This prevents invalid states from appearing in the system.
 
-class PaymentsStatus(str, Enum):
+class PaymentStatus(str, Enum):
     
     # The payment request has been received by the API
     # but has not yet started processing
@@ -182,7 +182,7 @@ class PaymentTransaction(BaseModel):
 
     # Current status of the transaction in the processing lifecycle.
     
-    status: PaymentsStatus
+    status: PaymentStatus
 
     # Timestamp recording when the transaction was created.
     created_at: datetime
