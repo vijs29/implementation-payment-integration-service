@@ -762,3 +762,58 @@ Property management entity responsible for overseeing property operations and pa
 The Payment Transaction connects these entities and serves as the central record used for processing, settlement, reporting, and operational analysis.
 
 Using a transaction model allows the platform to support distributed processing, retries, and settlement tracking.
+
+---
+
+## Payment Transaction Processing API
+
+The platform exposes a REST API endpoint for submitting rent payment transactions.
+
+POST /payments
+
+This endpoint accepts a validated payment request and creates a transaction record in the platform.
+
+Request fields:
+
+tenant_id  
+property_id  
+owner_id  
+rental_manager_id  
+rent_year  
+rent_month  
+amount  
+currency  
+payment_channel  
+
+The request is validated using Pydantic models to ensure data integrity before the request reaches the payment processing service.
+
+---
+
+## Transaction Processing Flow
+
+When a payment request is received, the platform performs the following steps:
+
+1. API request validation
+2. Duplicate payment detection
+3. Platform fee calculation
+4. Settlement amount calculation
+5. Transaction creation
+6. Transaction storage
+
+This ensures that each rent payment is processed exactly once per billing period.
+
+---
+
+## Platform Fee Model
+
+The platform generates revenue by charging a processing fee per transaction.
+
+Current fee model:
+
+ACH payments → $3 flat fee  
+CARD payments → 2.9% + $0.30  
+CASH_AGENT payments → $5 flat fee
+
+The settlement amount transferred to the property owner is calculated as:
+
+settlement_amount = payment_amount − platform_fee

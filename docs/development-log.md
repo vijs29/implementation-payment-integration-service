@@ -209,3 +209,27 @@ Example uniqueness rule:
 tenant_id + property_id + rent_year + rent_month
 
 This design supports reconciliation, reporting, and future AI-driven operational analysis of rent payment behavior.
+
+---
+
+# Day 5 — Payment Processing API Implementation
+
+Implemented the first functional API endpoint for the payment platform.
+
+POST /payments
+
+Capabilities added:
+
+- Payment transaction creation
+- Duplicate payment detection based on tenant, property, and billing period
+- Channel-based platform fee calculation
+- Net settlement calculation
+- Automatic request validation using Pydantic models
+
+The system now includes the following architectural layers:
+
+API Layer — FastAPI  
+Service Layer — PaymentService  
+Domain Models — PaymentTransaction and PaymentTransactionCreate  
+
+Transactions are temporarily stored in an in-memory list to support early development and testing. This will later be replaced by a PostgreSQL persistence layer.
