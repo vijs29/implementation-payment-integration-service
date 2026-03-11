@@ -38,6 +38,15 @@ def create_payment(request: PaymentTransactionCreate):
 
     return transaction
 
+# API endpoint to retrieve all payment transactions. This allows clients to view the transactions currently stored in the system.
+
+@app.get("/payments")
+
+def get_payments():
+
+    # Return the list of stored transactions from the service.
+
+    return payment_service.transactions
 
 
 
