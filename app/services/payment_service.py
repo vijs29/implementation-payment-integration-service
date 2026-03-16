@@ -1,13 +1,19 @@
-# Import uuid so the platform can generate unique transaction 
-# IDs.
-# Each payment transaction must have a globally unique
-# identifier.
+# Import uuid so the platform can generate unique transaction IDs.
+# Each payment transaction must have a globally unique identifier.
 
 import uuid
 
 # Import datetime to record when transactions were created.
 
 from datetime import datetime
+
+# Import SQLAlchemy session type used for database operations.
+
+from sqlalchemy.orm import Session
+
+# Import the ORM database model representing the database table.
+
+from app.database.models import PaymentTransactionDB
 
 # Import the transaction models we created earlier.
 # These models define the structure of payment requests.
@@ -18,6 +24,14 @@ from app.models.payment_transaction import(
     PaymentTransactionCreate,
     PaymentStatus 
 )
+
+# Import ledger service to record financial entries.
+
+from app.services.ledger_service import LedgerService
+
+# Import ledger entry model
+
+from app.models.ledger_entry import LedgerEntry
 
 # PaymentService contains the core business logic for
 # handling payment transactions in the platform.
@@ -40,6 +54,10 @@ class PaymentService:
         # Later this will be replaced by a database.
 
         self.transactions = []
+
+        # Initialize the ledger service used to record accounting entries.
+
+        self.ledger_service = LedgerService()
 
     # This method checks whether a payment already exists for the same tenant, property and rent 
     # billing period
@@ -93,9 +111,9 @@ class PaymentService:
     
     # This method creates a new payment transaction. It accepts a validated PaymentTransactionCreate object
     # coming from the API layer
-
+    # Create a new payment transaction and persist it in the PostgreSQL database.
     
-    def create_transaction(self, request:PaymentTransactionCreate):
+    def create_transaction(self, request:PaymentTransactionCreate, db:Session):
         
         # Check if a payment already exists for this tenant, property and billing period.
 
@@ -147,11 +165,80 @@ class PaymentService:
             created_at=created_at 
         )
 
-        # Store the transaction in the in-memory transaction list.
+        # Define ledger accounts involved in this payment.
 
-        self.transactions.append(transaction)
+        tenant_account = f"account_user_{request.tenant_id}"
 
-        # Return the created transaction so the API layer can 
-        # send it back to the client
+        owner_account = f"acct_merchant{request.owner_id}"
+
+        platform_account = "acct_platform_revenue"
+
+        # Tenant account debit(money leaving tenant)
+
+        tenant_entry = LedgerEntry(
+           entry_id="",
+           transaction_id=transaction_id,
+           account_id=tenant_account,
+           debit=request.amount,
+           credit=0 
+        )
+
+        # Owner account credit( money received after platform fee)
+
+        owner_entry = LedgerEntry(
+            entry_id="",
+            transaction_id=transaction_id,
+            account_id=owner_account,
+            debit=0,
+            credit=net_settlement_amount
+
+        )
+
+        # platform revenue credit
+
+        platform_entry = LedgerEntry(
+            entry_id="",
+            transaction_id=transaction_id,
+            account_id=platform_account,
+            debit=0,
+            credit=platform_fee
+        )
+
+        # Record ledger entries and enforce debit/credit balance.
+
+        self.ledger_service.record_entries(
+            transaction_id,
+            [tenant_entry, owner_entry, platform_entry],
+            db
+        )
+
+        # Convert the domain transaction object into the ORM database model.
+        db_transaction = PaymentTransactionDB(
+             transaction_id=transaction.transaction_id,
+             tenant_id=transaction.tenant_id,
+             property_id=transaction.property_id,
+             owner_id=transaction.owner_id,
+             rental_manager_id=transaction.rental_manager_id,
+             rent_year=transaction.rent_year,
+             rent_month=transaction.rent_month,
+             amount=transaction.amount,
+             currency=transaction.currency,
+             platform_fee=transaction.platform_fee,
+             net_settlement_amount=transaction.net_settlement_amount,
+             payment_channel=transaction.payment_channel,
+             status=transaction.status,
+             created_at=transaction.created_at
+        )
+
+        # Add the transaction to the database session.
+        db.add(db_transaction)
+
+        # Commit the transaction so it is written to PostgreSQL.
+        db.commit()
+
+        # Refresh the object so SQLAlchemy loads the stored state.
+        db.refresh(db_transaction)
+
+        # Return the created transaction so the API layer can send it back to the client
 
         return transaction 

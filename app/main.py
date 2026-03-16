@@ -1,26 +1,38 @@
-# Import the FastAPI class from the fastapi package. FastAPI is the framework we are using to build our API service.
+# FastAPI framework import used to create the API application and manage dependency injection.
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 
-# Import the payment service which contains the business logic for processing transactions.
+# SQLAlchemy Session type used for database transactions.
+
+from sqlalchemy.orm import Session
+
+# Import the payment service which contains the core business
+# logic for processing transactions.
 
 from app.services.payment_service import PaymentService
 
-# Import the request model used to validate incoming payment requests
+# Import the request schema used to validate incoming
+# payment transaction requests.
 
 from app.models.payment_transaction import PaymentTransactionCreate
 
-# Import database engine and Base metadata
+# Import the SQLAlchemy database engine and Base metadata
+# used to initialize database tables.
+# Also import get_db which provides a database session
+# for each API request.
 
-from app.database.database import engine, Base
+from app.database.database import engine, Base, get_db
 
-# Import ORm table models so SQLAlchemy knows what tables exist
+# Import ORM table models so SQLAlchemy knows what
+# database tables must exist when the application starts.
 
 from app.database import models
 
-# Create database tables automatically if they do not exist
-
 Base.metadata.create_all(bind=engine)
+
+# Import the balance service used to compute ledger balances.
+
+from app.services.balance_service import BalanceService
 
 # Create an instance of the FastAPI application.
 # This object represents our API server.
@@ -32,6 +44,10 @@ app = FastAPI()
 
 payment_service = PaymentService()
 
+# Initiliaze balance service
+
+balance_service = BalanceService()
+
 # API enddpoint to create a payment transaction. This endpoint accepts a validated payment request and 
 # sends it to payment service.
 
@@ -40,11 +56,11 @@ payment_service = PaymentService()
 @app.post("/payments")
 
 
-def create_payment(request: PaymentTransactionCreate):
+def create_payment(request: PaymentTransactionCreate, db: Session = Depends(get_db)):
     
     # Call the payment service to create the transaction.
 
-    transaction = payment_service.create_transaction(request)
+    transaction = payment_service.create_transaction(request, db)
 
     # Return the created transaction to the client
 
@@ -54,6 +70,8 @@ def create_payment(request: PaymentTransactionCreate):
 
 @app.get("/payments")
 
+#. Endpoint to retrieve the balance of an account from the ledger
+
 def get_payments():
 
     # Return the list of stored transactions from the service.
@@ -61,12 +79,11 @@ def get_payments():
     return payment_service.transactions
 
 
+@app.get("/accounts/{account_id}/balance")
 
+def get_account_balance(account_id: str, db: Session = Depends(get_db)):
 
-
-
-
-
+    return balance_service.get_account_balance(account_id, db) 
 
 # This decorator tells FastAPI that the function below
 # should run when a GET request is sent to the "/health" endpoint.
