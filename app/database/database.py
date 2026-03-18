@@ -1,48 +1,70 @@
-# SQLAlchemy provides the ORM framework used to interact with the database.
+# ---------------------------------------------------
+# SQLALCHEMY DATABASE CONFIGURATION
+# ---------------------------------------------------
 
+# SQLAlchemy engine is used to manage DB connections
 from sqlalchemy import create_engine
 
-# sessionmaker is used to create database sessions that allow the application to 
-# to execute queries and transactions
-
+# sessionmaker creates DB sessions (transactions)
 from sqlalchemy.orm import sessionmaker
 
-# declarative_base is used to define ORM models(tables) using Python classes.
-
+# Base class for all ORM models (tables)
 from sqlalchemy.orm import declarative_base
 
-# Database connection string. This tells SQLAlchemy how to connect to PostgreSQL database.
 
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/payment_platform"
+# ---------------------------------------------------
+# DATABASE CONNECTION
+# ---------------------------------------------------
+# Connection string for PostgreSQL
+# Format: postgresql://<user>@<host>:<port>/<database>
+DATABASE_URL = "postgresql://vijnewmac@localhost:5432/payment_platform"
 
-# Create the SQLAlchemy engine which manages connections to the database.
 
-engine = create_engine(DATABASE_URL)
+# ---------------------------------------------------
+# ENGINE CONFIGURATION
+# ---------------------------------------------------
+# Engine manages connection pool and DB connectivity
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,   # Ensures stale connections are detected and refreshed
+    pool_size=5,          # Default connection pool size
+    max_overflow=10       # Extra connections allowed beyond pool_size
+)
 
-# SessionLocal is a factory used to create database sessions
 
+# ---------------------------------------------------
+# SESSION FACTORY
+# ---------------------------------------------------
+# SessionLocal is used to create a new DB session per request
 SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
+    autocommit=False,   # We control commits manually
+    autoflush=False,    # Prevents auto flush before queries
     bind=engine
 )
 
+
+# ---------------------------------------------------
+# BASE CLASS FOR ORM MODELS
+# ---------------------------------------------------
 Base = declarative_base()
 
-# Dependency used by FastAPI to provide a database session to API endpoints
 
+# ---------------------------------------------------
+# FASTAPI DEPENDENCY
+# ---------------------------------------------------
+# Provides a DB session to each API request
 def get_db():
+    """
+    Dependency that provides a database session.
 
-    # Create a new db session.
+    Ensures:
+    - Each request gets its own session
+    - Session is properly closed after request completes
+    """
     db = SessionLocal()
 
     try:
-
-        # Provide the session to the API request
-
         yield db
 
     finally:
-        # Ensure the session is closed after the requesst
-
         db.close()

@@ -1,51 +1,52 @@
-# Import Enum to define controlled account types.
-# Enum ensures that only valid account categories can exist.
+# ---------------------------------------------------
+# ACCOUNT DOMAIN MODELS
+# ---------------------------------------------------
 
+# Import Enum to define controlled account types.
+# Ensures only valid account categories are used.
 from enum import Enum
 
-# Import BaseModel from Pydantic.
-# Pydantic models are used for API validation and structured data handling.
-
+# Import BaseModel from Pydantic for data validation.
 from pydantic import BaseModel
 
-# AccountType defines the possible categories of financial accounts inside the payment platform ledger.
 
+# ---------------------------------------------------
+# ACCOUNT TYPE ENUM
+# ---------------------------------------------------
 class AccountType(str, Enum):
-    
-    # Accounts representing users who send money.
+    """
+    Defines the types of accounts in the system.
+    """
 
+    # Accounts representing users who send money
     USER = "USER"
 
-    # Accounts representing businesses or merchants receiving funds.
-
+    # Accounts representing merchants receiving funds
     MERCHANT = "MERCHANT"
 
-    # Internal platform revenue account (fees collected).
-
+    # Internal platform revenue account (fees)
     PLATFORM = "PLATFORM"
 
-   # Temporary holding accounts used during settlement workflows.
-
+    # Temporary holding account (future use)
     ESCROW = "ESCROW"
 
-    # Account represents a ledger account in the system. Each account has an owner and a type.
 
-    class Account(BaseModel)
-        
-        # Unique identifier for the account.
+# ---------------------------------------------------
+# ACCOUNT MODEL
+# ---------------------------------------------------
+class Account(BaseModel):
+    """
+    Represents a ledger account in the payment system.
+    """
 
-        account_is: str
+    # Unique identifier for the account
+    account_id: str
 
-        # Id of the entity that owns the account. This could represent a user, merchant, or internal platform entity
+    # Owner of the account (user, merchant, or platform)
+    owner_id: str
 
-        owner_id: str
+    # Type of account
+    account_type: AccountType
 
-        # Type of account based on the AccountType enum.
-
-        account_type: AccountType
-
-        # Current account balance. This will eventually be calculated from ledger entries.
-
-        balance: float = 0.0
-
- 
+    # Current balance (derived from ledger entries in future)
+    balance: float = 0.0

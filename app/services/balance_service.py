@@ -1,37 +1,51 @@
-# Import SQLAlchemy session for database access.
+# ---------------------------------------------------
+# BALANCE SERVICE
+# ---------------------------------------------------
 
+# Import SQLAlchemy session for database access
 from sqlalchemy.orm import Session
 
+# Import Decimal for precise financial calculations
+from decimal import Decimal
+
 # Import database ledger model
+from app.database.models import LedgerEntryDB
 
-from app.database.ledger_models import LedgerEntryDB
 
-# BalanceService calculates account balances from ledger entries.
-
+# ---------------------------------------------------
+# BALANCE SERVICE CLASS
+# ---------------------------------------------------
 class BalanceService:
-    # Compute balance for a given account
+    """
+    Calculates account balances using ledger entries.
 
-    def get_account_balance(self, account_id: str, db:Session):
+    Balance formula:
+        balance = total_credit - total_debit
+    """
 
-        # Fetch all ledger entries for the account.
+    def get_account_balance(self, account_id: str, db: Session):
+        """
+        Compute balance for a given account.
+        """
 
+        # Fetch all ledger entries for the account
         entries = db.query(LedgerEntryDB).filter(
             LedgerEntryDB.account_id == account_id
         ).all()
 
-        total_debit = 0
-        total_credit = 0
+        # Initialize totals using Decimal for accuracy
+        total_debit = Decimal("0.00")
+        total_credit = Decimal("0.00")
 
+        # Aggregate ledger entries
         for entry in entries:
-            total_debit += entry.debit
-            total_credit += entry.credit
+            total_debit += Decimal(entry.debit or 0)
+            total_credit += Decimal(entry.credit or 0)
 
-        # Balance formula used by financial ledgers.
-
+        # Calculate final balance
         balance = total_credit - total_debit
 
         return {
-
             "account_id": account_id,
-            "balance": balance
+            "balance": float(balance)  # Convert for API response
         }

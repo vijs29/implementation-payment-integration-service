@@ -1,153 +1,138 @@
 # Import uuid so the platform can generate unique transaction IDs.
-# Each payment transaction must have a globally unique identifier.
-
 import uuid
 
 # Import datetime to record when transactions were created.
-
 from datetime import datetime
 
 # Import SQLAlchemy session type used for database operations.
-
 from sqlalchemy.orm import Session
 
-# Import the ORM database model representing the database table.
+# Import Decimal for precise financial calculations.
+from decimal import Decimal, ROUND_HALF_UP
 
+# Import ORM model for database persistence.
 from app.database.models import PaymentTransactionDB
 
-# Import the transaction models we created earlier.
-# These models define the structure of payment requests.
-# and stored transaction records.
-
-from app.models.payment_transaction import(
+# Import domain models.
+from app.models.payment_transaction import (
     PaymentTransaction,
     PaymentTransactionCreate,
-    PaymentStatus 
+    PaymentStatus
 )
 
 # Import ledger service to record financial entries.
-
 from app.services.ledger_service import LedgerService
 
-# Import ledger entry model
-
+# Import ledger entry model.
 from app.models.ledger_entry import LedgerEntry
 
-# PaymentService contains the core business logic for
-# handling payment transactions in the platform.
-#
-# The service layer is responsible for tasks such as:
-# - creating new transactions
-# - calculating platform fee
-# - preventing duplicate rent payments
-# - initializing transaction lifecycle state
+# Import event publisher to push events to Redis.
+from app.events.event_publisher import EventPublisher
+
 
 class PaymentService:
 
-    # The constructor runs when the service is initialized.
-    # For now we will create an in-memory list to simulate
-    # a transaction store until we add a real database.
-
     def __init__(self):
-        
-        # Temporary storage for transactions
-        # Later this will be replaced by a database.
-
-        self.transactions = []
-
-        # Initialize the ledger service used to record accounting entries.
-
         self.ledger_service = LedgerService()
+        self.publisher = EventPublisher()
 
-    # This method checks whether a payment already exists for the same tenant, property and rent 
-    # billing period
+    # ---------------------------------------------------
+    # Duplicate check (DB-level)
+    # ---------------------------------------------------
+    def _check_duplicate_payment(self, request: PaymentTransactionCreate, db: Session):
 
-    def _check_duplicate_payment(self, request: PaymentTransactionCreate):
+        existing = db.query(PaymentTransactionDB).filter(
+            PaymentTransactionDB.tenant_id == request.tenant_id,
+            PaymentTransactionDB.property_id == request.property_id,
+            PaymentTransactionDB.rent_year == request.rent_year,
+            PaymentTransactionDB.rent_month == request.rent_month
+        ).first()
 
-        # Loop through all stored transactions:
+        return existing is not None
 
-        for transaction in self.transactions:
-
-            # check if tenant, property and billingperiod match.
-
-            if(
-                transaction.tenant_id == request.tenant_id
-                and transaction.property_id == request.property_id
-                and transaction.rent_year == request.rent_year
-                and transaction.rent_month == request.rent_month
-            ):
-                return True
-            
-        # If no duplicate found, return False.
-
-        return False 
-        
-    # This method calculates the platform fee based on the payment channel used by the tenant.
-    #
-    # Different channels have different fee structures.
-
+    # ---------------------------------------------------
+    # Platform fee calculation
+    # ---------------------------------------------------
     def _calculate_platform_fee(self, amount: float, payment_channel):
-        
-        # ACH payments have a small flat processing fee.
 
         if payment_channel == "ACH":
-            return 3.0
-        
-        # Card payments usually have a percentage fees plus a small fixed processing cost
+            return Decimal("3.00")
 
         elif payment_channel == "CARD":
-            return amount * 0.029 + 0.30
-        
-        # Cash agent payments havea higher flat handling fee.
+            amount_decimal = Decimal(str(amount))
+            fee = (amount_decimal * Decimal("0.029")) + Decimal("0.30")
+            return fee.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         elif payment_channel == "CASH_AGENT":
-            return 5.0
-        
-        # If an unknown payment channel is used, raise an error to prevent invalid processing.
+            return Decimal("5.00")
 
         else:
             raise ValueError("Unsupported payment channel")
-        
-    
-    # This method creates a new payment transaction. It accepts a validated PaymentTransactionCreate object
-    # coming from the API layer
-    # Create a new payment transaction and persist it in the PostgreSQL database.
-    
-    def create_transaction(self, request:PaymentTransactionCreate, db:Session):
-        
-        # Check if a payment already exists for this tenant, property and billing period.
 
-        if self._check_duplicate_payment(request):
+    # ---------------------------------------------------
+    # Create Transaction
+    # ---------------------------------------------------
+    def create_transaction(self, request: PaymentTransactionCreate, db: Session):
 
-            # If a duplicate payment is detected, stop processing and raise an error.
+        # ------------------------------------------
+        # Step 0: Idempotency check
+        # ------------------------------------------
+        if request.idempotency_key:
+            existing_txn = db.query(PaymentTransactionDB).filter(
+                PaymentTransactionDB.idempotency_key == request.idempotency_key
+            ).first()
 
+            if existing_txn:
+                print("Idempotent request detected, returning existing transaction")
+
+                return PaymentTransaction(
+                    transaction_id=existing_txn.transaction_id,
+                    tenant_id=existing_txn.tenant_id,
+                    property_id=existing_txn.property_id,
+                    owner_id=existing_txn.owner_id,
+                    rental_manager_id=existing_txn.rental_manager_id,
+                    rent_year=existing_txn.rent_year,
+                    rent_month=existing_txn.rent_month,
+                    amount=existing_txn.amount,
+                    currency=existing_txn.currency,
+                    platform_fee=existing_txn.platform_fee,
+                    net_settlement_amount=existing_txn.net_settlement_amount,
+                    payment_channel=existing_txn.payment_channel,
+                    status=existing_txn.status,
+                    created_at=existing_txn.created_at
+                )
+
+        # ------------------------------------------
+        # Step 1: Business duplicate check
+        # ------------------------------------------
+        if self._check_duplicate_payment(request, db):
             raise ValueError(
                 "Duplicate payment detected for this tenant, property and rent period"
             )
-                  
-        # Generate a unique transaction ID using UUID.    
 
+        # ------------------------------------------
+        # Step 2: Generate transaction
+        # ------------------------------------------
         transaction_id = f"txn_{uuid.uuid4()}"
-
-        # Record the timestamp when the transaction was
-        # created
-
         created_at = datetime.utcnow()
 
-        # Calculate the platform fee based on the payment channel.
-
+        # ------------------------------------------
+        # Step 3: Financial calculations
+        # ------------------------------------------
         platform_fee = self._calculate_platform_fee(
             request.amount,
             request.payment_channel
         )
-        
-        # Calculate the net amount that will be settled to the property owner after deducting the fee.
 
-        net_settlement_amount = request.amount - platform_fee
+        amount_decimal = Decimal(str(request.amount))
 
-        # Create the PaymentTransaction object using the data
-        # from the request and system-generated fields.
+        net_settlement_amount = (
+            amount_decimal - platform_fee
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+        # ------------------------------------------
+        # Step 4: Create domain object
+        # ------------------------------------------
         transaction = PaymentTransaction(
             transaction_id=transaction_id,
             tenant_id=request.tenant_id,
@@ -158,53 +143,43 @@ class PaymentService:
             rent_month=request.rent_month,
             amount=request.amount,
             currency=request.currency,
-            platform_fee=platform_fee,
-            net_settlement_amount=net_settlement_amount,
+            platform_fee=float(platform_fee),
+            net_settlement_amount=float(net_settlement_amount),
             payment_channel=request.payment_channel,
             status=PaymentStatus.CREATED,
-            created_at=created_at 
+            created_at=created_at
         )
 
-        # Define ledger accounts involved in this payment.
-
-        tenant_account = f"account_user_{request.tenant_id}"
-
-        owner_account = f"acct_merchant{request.owner_id}"
-
+        # ------------------------------------------
+        # Step 5: Ledger entries
+        # ------------------------------------------
+        tenant_account = f"acct_user_{request.tenant_id}"
+        owner_account = f"acct_owner_{request.owner_id}"
         platform_account = "acct_platform_revenue"
 
-        # Tenant account debit(money leaving tenant)
-
         tenant_entry = LedgerEntry(
-           entry_id="",
-           transaction_id=transaction_id,
-           account_id=tenant_account,
-           debit=request.amount,
-           credit=0 
+            entry_id="",
+            transaction_id=transaction_id,
+            account_id=tenant_account,
+            debit=request.amount,
+            credit=0
         )
-
-        # Owner account credit( money received after platform fee)
 
         owner_entry = LedgerEntry(
             entry_id="",
             transaction_id=transaction_id,
             account_id=owner_account,
             debit=0,
-            credit=net_settlement_amount
-
+            credit=float(net_settlement_amount)
         )
-
-        # platform revenue credit
 
         platform_entry = LedgerEntry(
             entry_id="",
             transaction_id=transaction_id,
             account_id=platform_account,
             debit=0,
-            credit=platform_fee
+            credit=float(platform_fee)
         )
-
-        # Record ledger entries and enforce debit/credit balance.
 
         self.ledger_service.record_entries(
             transaction_id,
@@ -212,33 +187,56 @@ class PaymentService:
             db
         )
 
-        # Convert the domain transaction object into the ORM database model.
+        # ------------------------------------------
+        # Step 6: Persist transaction
+        # ------------------------------------------
         db_transaction = PaymentTransactionDB(
-             transaction_id=transaction.transaction_id,
-             tenant_id=transaction.tenant_id,
-             property_id=transaction.property_id,
-             owner_id=transaction.owner_id,
-             rental_manager_id=transaction.rental_manager_id,
-             rent_year=transaction.rent_year,
-             rent_month=transaction.rent_month,
-             amount=transaction.amount,
-             currency=transaction.currency,
-             platform_fee=transaction.platform_fee,
-             net_settlement_amount=transaction.net_settlement_amount,
-             payment_channel=transaction.payment_channel,
-             status=transaction.status,
-             created_at=transaction.created_at
+            transaction_id=transaction.transaction_id,
+            tenant_id=transaction.tenant_id,
+            property_id=transaction.property_id,
+            owner_id=transaction.owner_id,
+            rental_manager_id=transaction.rental_manager_id,
+            rent_year=transaction.rent_year,
+            rent_month=transaction.rent_month,
+            amount=transaction.amount,
+            currency=transaction.currency,
+            platform_fee=transaction.platform_fee,
+            net_settlement_amount=transaction.net_settlement_amount,
+            payment_channel=transaction.payment_channel,
+            status=transaction.status,
+            created_at=transaction.created_at,
+            idempotency_key=request.idempotency_key
         )
 
-        # Add the transaction to the database session.
         db.add(db_transaction)
 
-        # Commit the transaction so it is written to PostgreSQL.
+        # CRITICAL: Commit BEFORE publishing event
         db.commit()
 
-        # Refresh the object so SQLAlchemy loads the stored state.
         db.refresh(db_transaction)
 
-        # Return the created transaction so the API layer can send it back to the client
+        print(f"[DEBUG] Transaction committed: {transaction_id}")
 
-        return transaction 
+        # ------------------------------------------
+        # Step 7: Publish event (AFTER COMMIT)
+        # ------------------------------------------
+        event = {
+            "event_type": "payment.created",
+            "payload": {
+                "transaction_id": transaction_id,
+                "tenant_id": request.tenant_id,
+                "owner_id": request.owner_id,
+                "amount": request.amount,
+                "currency": request.currency,
+                "correlation_id": request.correlation_id
+            }
+        }
+
+        print(f"[DEBUG] Publishing event for txn: {transaction_id}")
+
+        self.publisher.publish(event)
+
+        # ------------------------------------------
+        # Step 8: Return response
+        # ------------------------------------------
+        return transaction

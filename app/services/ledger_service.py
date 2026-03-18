@@ -1,55 +1,65 @@
-# Import uuid to generate unique identifiers for ledger entries.
+# ---------------------------------------------------
+# LEDGER SERVICE
+# ---------------------------------------------------
 
+# Import uuid to generate unique identifiers
 import uuid
 
-
-# Import SQLAlchemy session type used for database operations.
-
+# Import SQLAlchemy session
 from sqlalchemy.orm import Session
 
+# Import Decimal for financial precision
+from decimal import Decimal
 
-# Import the Pydantic ledger entry model.
-
+# Import Pydantic ledger model
 from app.models.ledger_entry import LedgerEntry
 
-
-# Import the ORM database model representing the ledger_entries table.
-
-from app.database.ledger_models import LedgerEntryDB
+# Import ORM DB model
+from app.database.models import LedgerEntryDB
 
 
-# LedgerService manages the creation and validation of ledger entries.
-# It ensures that every financial transaction is balanced
-# and records the entries in the database.
-
-
+# ---------------------------------------------------
+# LEDGER SERVICE CLASS
+# ---------------------------------------------------
 class LedgerService:
+    """
+    Handles creation and validation of ledger entries.
 
-    # This method records ledger entries for a transaction.
-    # It validates that total debits equal total credits before writing to the database.
+    Ensures:
+    - Double-entry accounting integrity
+    - Debit = Credit validation
+    - Safe financial persistence
+    """
 
-    def record_entries(self, transaction_id: str, entries: list, db: Session):
+    def record_entries(self, transaction_id: str, entries: list[LedgerEntry], db: Session):
+        """
+        Records ledger entries for a transaction.
+        """
 
-        total_debit = 0.0
-        total_credit = 0.0
+        # ------------------------------------------
+        # STEP 1: Initialize totals using Decimal
+        # ------------------------------------------
+        total_debit = Decimal("0.00")
+        total_credit = Decimal("0.00")
 
-        # Calculate total debit and credit values.
-
+        # ------------------------------------------
+        # STEP 2: Aggregate values
+        # ------------------------------------------
         for entry in entries:
+            total_debit += Decimal(entry.debit)
+            total_credit += Decimal(entry.credit)
 
-            total_debit += entry.debit
-            total_credit += entry.credit
-
-        # Validate accounting balance.
-
-        if round(total_debit, 2) != round(total_credit, 2):
-
+        # ------------------------------------------
+        # STEP 3: Validate double-entry accounting
+        # ------------------------------------------
+        if total_debit != total_credit:
             raise ValueError(
-                "Ledger imbalance detected: total debits must equal total credits"
+                f"Ledger imbalance detected: debit={total_debit}, credit={total_credit}"
             )
 
-        # Store entries in the database.
-
+        # ------------------------------------------
+        # STEP 4: Persist entries
+        # ------------------------------------------
         for entry in entries:
 
             entry_id = f"entry_{uuid.uuid4()}"
@@ -58,19 +68,22 @@ class LedgerService:
                 entry_id=entry_id,
                 transaction_id=transaction_id,
                 account_id=entry.account_id,
-                debit=entry.debit,
-                credit=entry.credit,
+                debit=Decimal(entry.debit),
+                credit=Decimal(entry.credit),
                 created_at=entry.created_at
             )
 
-            # Add entry to database session.
-
             db.add(db_entry)
 
-        # Commit all entries to the database.
-
+        # ------------------------------------------
+        # STEP 5: Commit transaction
+        # ------------------------------------------
         db.commit()
 
-        # Return the recorded entries.
+        # ------------------------------------------
+        # STEP 6: Debug visibility (important for tracing)
+        # ------------------------------------------
+        print(f"[LEDGER] Entries recorded for txn={transaction_id}")
+        print(f"[LEDGER] Total Debit={total_debit}, Total Credit={total_credit}")
 
         return entries
